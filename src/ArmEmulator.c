@@ -826,8 +826,8 @@ int main(void) {
 
     //for testing purposes put some data into the memory. This data represents the instructions to be executed.
 
-    /*Math instructions
-    //MOV r0,#9    		1110 0011 1010 0000 0000 0000 0000 1001
+    /*Math instructions*/
+    // MOV r0,#9    		1110 0011 1010 0000 0000 0000 0000 1001
     memory[memoryIndex++] = 0xE3A00009;
     //MOV r1,#8			1110 0011 1010 0000 0001 0000 0000 1000
     memory[memoryIndex++] = 0xE3A01008;
@@ -842,7 +842,7 @@ int main(void) {
     //ADDS r6,r0,#205	1110 0010 1001 0000 0110 0000 1100 1101
     memory[memoryIndex++] = 0xE29060CD;
     //BICS r7,r0,#1		1110 0011 1101 0000 0111 0000 0000 0001
-    memory[memoryIndex++] = 0xE3D07001;*/
+    memory[memoryIndex++] = 0xE3D07001;
     //End Math instructions
 
     /*Logic instructions
@@ -868,7 +868,7 @@ int main(void) {
     memory[memoryIndex++] = 0xE331000C;
     //End Logic instructions*/
 
-    /*Loop instructions*/
+    /*Loop instructions
     //MOV R4,#100 		1110 0011 1010 0000 0100 0000 0110 0100
     memory[memoryIndex++] = 0xE3A04064;
     //MOV R3,#0    		1110 0011 1010 0000 0011 0000 0000 0000
@@ -880,7 +880,7 @@ int main(void) {
     //CMP R3,#100		1110 0011 0101 0011 0000 0000 0110 0100
     memory[memoryIndex++] = 0xE3530064;
     //BNE #-32			0001 1010 1111 1111 1111 1111 1110 0000 //return to .strR4100 if loop not completed. 4+4 instructions back, because of pipeline
-    memory[memoryIndex++] = 0x1AFFFFE0;
+    memory[memoryIndex++] = 0x1AFFFFE0;*/
     //End Loop instructions
 
     /*Data transfer instructions

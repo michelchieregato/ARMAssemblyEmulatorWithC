@@ -296,7 +296,6 @@ void doAdd(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
         issueInstruction = TRUE;
     } else if (addStep == 5) {
         addStep = 0;
-        issueInstruction = TRUE;
     }
 }
 
@@ -327,9 +326,8 @@ void doSub(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
             setStatusReg(result == 0, isNegative(result), isCarrySub(op1Value, op2Value, result),
                          isOverflowSub(op1Value, op2Value, result), 0, 0, 0);
         issueInstruction = TRUE;
-    } if (subStep == 5) {
+    } else if (subStep == 5) {
         subStep = 0;
-        issueInstruction = TRUE;
     }
 
 }

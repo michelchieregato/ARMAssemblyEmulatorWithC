@@ -117,6 +117,15 @@ typedef uint8_t BIT;            //define bit data type
 #define INST_MULTIPLYBYZERO (1<<4)
 #define INST_RESTRICTEDMEMORYBLOCK (1<<5)
 
+#define TRUE 1
+#define FALSE 0
+
+#define ADD_INSTRUCTIONS 4
+
+// Coisas minhas - miguezinho para fazer scoreboard
+int issueInstruction = TRUE;
+int instCount = -1;
+
 int maxMemorySize = 140;//Temporarily set the memory size to 140 to better monitor the data in memory during the output, increase this value as required.
 int userMemoryIndex = 120;//from 120 to maxMemorySize can be used by user to load/store data
 int stkMemoryIndex = 100;//next 20 are reserved for stack
@@ -269,15 +278,26 @@ void doEor(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
  * 			op2Value  -  the second value to be added
  * 			setSR     - flag, if non-zero then the status register should be updated, else it shouldn't
  */
+
+// Mudei aqui por causas dos steps
+int addStep = 0;
 void doAdd(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
-    if (instructionLogEnabled) printf("Operation: ADD %d %d\n", op1Value, op2Value);
-    WORD result = op1Value + op2Value;
+    addStep++;
+    issueInstruction = FALSE;
 
-    registers[regNumber] = result;
+    if (addStep == 4) {
+        if (instructionLogEnabled) printf("Operation: ADD %d %d\n", op1Value, op2Value);
+        WORD result = op1Value + op2Value;
 
-    if (setSR)
-        setStatusReg(result == 0, isNegative(result), isCarryAdd(op1Value, op2Value, result),
-                     isOverflowAdd(op1Value, op2Value, result), 0, 0, 0);
+        registers[regNumber] = result;
+        if (setSR)
+            setStatusReg(result == 0, isNegative(result), isCarryAdd(op1Value, op2Value, result),
+                         isOverflowAdd(op1Value, op2Value, result), 0, 0, 0);
+        issueInstruction = TRUE;
+    } else if (addStep == 5) {
+        addStep = 0;
+        issueInstruction = TRUE;
+    }
 }
 
 void doAdc(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
@@ -291,16 +311,27 @@ void doAdc(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
                      isOverflowAdd(op1Value, op2Value, result), 0, 0, 0);
 }
 
+int subStep = 0;
 void doSub(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
-    if (instructionLogEnabled) printf("Operation: SUB %d %d\n", op1Value, op2Value);
 
-    WORD result = op1Value - op2Value;
+    subStep++;
+    issueInstruction = FALSE;
 
-    registers[regNumber] = result;
+    if (subStep == 4) {
+        if (instructionLogEnabled) printf("Operation: SUB %d %d\n", op1Value, op2Value);
+        WORD result = op1Value - op2Value;
 
-    if (setSR)
-        setStatusReg(result == 0, isNegative(result), isCarrySub(op1Value, op2Value, result),
-                     isOverflowSub(op1Value, op2Value, result), 0, 0, 0);
+        registers[regNumber] = result;
+
+        if (setSR)
+            setStatusReg(result == 0, isNegative(result), isCarrySub(op1Value, op2Value, result),
+                         isOverflowSub(op1Value, op2Value, result), 0, 0, 0);
+        issueInstruction = TRUE;
+    } if (subStep == 5) {
+        subStep = 0;
+        issueInstruction = TRUE;
+    }
+
 }
 
 void doSbc(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
@@ -798,7 +829,6 @@ void printOutput() {
 int main(void) {
     int isFinished = 0;
     int memoryIndex = instMemoryIndex;//Initialise the memory index for the instructions block
-    int instCount = 0;
 
     //Technically the register values would be 0 anyway, yet this is a double check to make sure they are initialised
     int i = 0;
@@ -923,15 +953,19 @@ int main(void) {
     //at the moment this will terminate the main loop (see comments below)
     memory[memoryIndex++] = 0;
 
+    int clock = 0;
     while (!isFinished) {
+        clock++;
         //After each instruction is completed, get user feedback
-        getFeedback();
+//        getFeedback();
 
         // fetch the next instruction. Subtract 4 from the PC, because of the pipeline PC points to 4 instructions forward
-        inst = memory[(registers[15] - 4)];
-
         //increment the PC(register[15]) to point at the next instruction
-        registers[15]++;
+        if (issueInstruction == TRUE) {
+            inst = memory[(registers[15] - 4)];
+            registers[15]++;
+            instCount++;
+        }
 
         //Initialise the instruction result values
         instResult = INST_VALID;
@@ -942,22 +976,18 @@ int main(void) {
         if (inst != 0) {
             printf("---------- Instruction %d ----------\n", instCount);
             decodeAndExecute(inst);
-            printOutput();
+            if (issueInstruction == TRUE) {
+                printOutput();
+                printf("---------- %d Cycles, end of instruction %d----------\n", clock, instCount);
+            }
 
-            //Update total cycle count
-            totalCycleCount += instCycleCount;
-
-            printf("---------- %d Cycles, end of instruction %d----------\n", instCycleCount, instCount);
-
-            //Increase the amount of instructions executed
-            instCount++;
         } else {
             // found an instruction with the value 0
             // finish once a 0 hit. Not correct behaviour but good for testing
             isFinished = 1;
 
             //Total instruction count doesn't include the finish instruction
-            printf("========== %d Total cycles for %d instructions ==========\n", totalCycleCount, instCount);
+            printf("========== %d Total cycles for %d instructions ==========\n", clock, instCount);
             printf("Press enter to exit...\n");
             getchar();
         }

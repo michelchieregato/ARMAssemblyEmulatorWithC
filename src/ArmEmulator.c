@@ -43,6 +43,17 @@ typedef uint8_t BIT;            //define bit data type
 
 #define POS_SWICODE (0)//Software interrupt code
 
+// Minhas coisas
+#define POS_BUSY (22)
+#define OP_SCORE (18)
+#define REG_DEST_SCORE (14)
+#define FJ (10)
+#define FK (6)
+#define QJ (4)
+#define QK (2)
+#define RJ (1)
+#define RK (0)
+
 //Define mask amount size
 #define MASK_1BIT (0x1)
 #define MASK_2BIT (0x3)
@@ -135,6 +146,8 @@ int swibMemoryIndex = 0;//First 12 rows are the interrupts branch instruction. N
 
 //storing registers within array makes execution code simpler
 REGISTER registers[16];
+REGISTER scoreboard[3];
+
 //4 kilobytes of RAM in this example (since 1 word = 4 bytes)
 WORD memory[1024];
 //the variable to fetch the instruction into
@@ -149,7 +162,7 @@ BYTE instResult = INST_VALID;//Instruction result handler
 //Variables for data processing instructions
 BIT iBit = 0, sBit = 0, lBit = 0, pBit = 0, uBit = 0, bBit = 0, wBit = 0, lsBit = 0;
 BYTE opCode, regN, regDest, shiftAmount;
-WORD operand, offset, swiCode;
+WORD operand, offset, swiCode, regM;
 
 //Turn on/off the debug mode; prints assisting data about the operation steps
 int debugEnabled = 0;
@@ -163,6 +176,51 @@ int feedback = 0;
 //Get the negative value, use two's complement for negation
 WORD getNegative(WORD value) {
     return ~value + 1;
+}
+
+// F1
+
+int f1Issue(WORD inst) {
+    iBit = (inst >> POS_I) & MASK_1BIT;//Get Immediate bit
+    opCode = (inst >> POS_OPCODE) & MASK_4BIT;//Get Opcode, 4 bits
+    sBit = (inst >> POS_S) & MASK_1BIT;//Get Status bit
+    regN = (inst >> POS_REGN) & MASK_4BIT; // Get RegN, 4 bits 0010
+    regDest = (inst >> POS_REGDEST) & MASK_4BIT;//Get RegDest, 4 bits
+    regM = (inst >> POS_OPERAND) & MASK_4BIT;
+
+    int isBusy = (scoreboard[0] >> POS_BUSY) & MASK_1BIT;
+
+    if (isBusy) {
+        return 0; // caso esteja busy n pode issue volta 0
+    }
+
+    int qj, qk;
+    BIT rj=0, rk=0;
+    qj = (scoreboard[2] >> regN * 2) & MASK_2BIT;
+    qk = (scoreboard[2] >> regM * 2) & MASK_2BIT;
+    if (qj == 0) {
+        rj = 1;
+    }
+    if (qk == 0) {
+        rk = 1;
+    }
+
+    printf("qj: %d\n qk: %d\n", qj, qk);
+
+    scoreboard[0] = (1 << POS_BUSY) | (opCode << OP_SCORE) | (regDest << REG_DEST_SCORE) | (regN << FJ) | (regM << FK) | (qj << QJ) | (qk << QK) | (rj << RJ) | (rk << RK);
+//    printf("Busy: %d\n", (scoreboard[0] >> POS_BUSY) & MASK_1BIT);
+//    printf("OPSCORE: %d\n", (scoreboard[0] >> OP_SCORE) & MASK_4BIT);
+//    printf("RDest: %d\n", (scoreboard[0] >> REG_DEST_SCORE) & MASK_4BIT);
+//    printf("RegJ: %d\n", (scoreboard[0] >> FJ) & MASK_4BIT);
+//    printf("RegK: %d\n", (scoreboard[0] >> FK) & MASK_4BIT);
+//    printf("QJ: %d\n", (scoreboard[0] >> QJ) & MASK_2BIT);
+//    printf("QK: %d\n", (scoreboard[0] >> QK) & MASK_2BIT);
+//    printf("RJ: %d\n", (scoreboard[0] >> RJ) & MASK_1BIT);
+//    printf("Rk: %d\n", (scoreboard[0] >> RK) & MASK_1BIT);
+
+    scoreboard[2] = 32; // (scoreboard[2] << (regM * 2)) | 1 <<  | (scoreboard[2] >> (regN * 2 - 2));
+
+    return 1;
 }
 
 //Check if a specific value is negative, use two's complement for negation
@@ -282,20 +340,22 @@ void doEor(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
 // Mudei aqui por causas dos steps
 int addStep = 0;
 void doAdd(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
+
     addStep++;
     issueInstruction = FALSE;
 
-    if (addStep == 4) {
+    if (addStep == ADD_INSTRUCTIONS) {
         if (instructionLogEnabled) printf("Operation: ADD %d %d\n", op1Value, op2Value);
+        issueInstruction = TRUE;
+    } else if (addStep == 5) {
+        addStep = 0;
         WORD result = op1Value + op2Value;
-
         registers[regNumber] = result;
         if (setSR)
             setStatusReg(result == 0, isNegative(result), isCarryAdd(op1Value, op2Value, result),
                          isOverflowAdd(op1Value, op2Value, result), 0, 0, 0);
-        issueInstruction = TRUE;
-    } else if (addStep == 5) {
-        addStep = 0;
+        scoreboard[0]=0;
+        // scoreboard[2][regdest]=0
     }
 }
 
@@ -506,12 +566,13 @@ int getConditionCode(WORD inst) {
 }
 
 //Do the data processing type operations
-void doDataProcessing(WORD inst) {
+int doDataProcessing(WORD inst) {
     iBit = (inst >> POS_I) & MASK_1BIT;//Get Immediate bit
     opCode = (inst >> POS_OPCODE) & MASK_4BIT;//Get Opcode, 4 bits
     sBit = (inst >> POS_S) & MASK_1BIT;//Get Status bit
     regN = (inst >> POS_REGN) & MASK_4BIT;//Get RegN, 4 bits
     regDest = (inst >> POS_REGDEST) & MASK_4BIT;//Get RegDest, 4 bits
+    int issueOk = 1;
 
     //Get the operand depending to the Immediate code
     if (iBit) {
@@ -543,13 +604,15 @@ void doDataProcessing(WORD inst) {
             doEor(regDest, registers[regN], operand, sBit);
             break;
         case OP_SUB:
-            doSub(regDest, registers[regN], operand, sBit);
+            issueOk = f1Issue(inst);
+            // doSub(regDest, registers[regN], operand, sBit);
             break;
         case OP_RSB:
             doRsb(regDest, registers[regN], operand, sBit);
             break;
         case OP_ADD:
-            doAdd(regDest, registers[regN], operand, sBit);
+            issueOk = f1Issue(inst);
+            // doAdd(regDest, registers[regN], operand, sBit);
             break;
         case OP_ADC:
             doAdc(regDest, registers[regN], operand, sBit);
@@ -591,6 +654,7 @@ void doDataProcessing(WORD inst) {
 
     //Update the cycle count. If regDest is PC the +2, otherwise 1 cycle.
     instCycleCount = (regDest == 15) ? 3 : 1;
+    return issueOk;
 }
 
 //Do the branch type operations
@@ -709,10 +773,43 @@ void doSoftwareInterrupt(WORD inst) {
     instCycleCount = 5;
 }
 
+void checkUF1() {
+    int isBusy = (scoreboard[0] >> POS_BUSY) & MASK_1BIT;
+    int opCode = (scoreboard[0] >> OP_SCORE) & MASK_4BIT;
+    int regDest = (scoreboard[0] >> REG_DEST_SCORE) & MASK_4BIT;
+    int fj = (scoreboard[0] >> FJ) & MASK_4BIT;
+    int fk = (scoreboard[0] >> FK) & MASK_4BIT;
+    int sBit =0;
+
+    if (!isBusy) {
+        return;
+    }
+
+
+    BIT rj, rk;
+    rj = (scoreboard[0] >> RJ) & MASK_1BIT;
+    rk = (scoreboard[0] >> RK) & MASK_1BIT;
+
+    if (rj & rk) {
+        switch (opCode) {
+            case OP_SUB:
+                doSub(regDest, registers[fj], registers[fk], sBit);
+                break;
+            case OP_ADD:
+                doAdd(regDest, registers[regN], operand, sBit);
+                break;
+            default:
+                instResult = INST_INVALID;
+                break;
+        }
+    }
+}
+
 // The main work will happen inside this function. It should decode then execute the passed instruction.
-void decodeAndExecute(WORD inst) {
+int decodeAndExecute(WORD inst) {
     int insTypeCode;
     int exec;
+    int issueOk = 1;
 
     if (debugEnabled) printf("Decoding: %04X\n", inst);    // output the instruction being decoded
 
@@ -729,7 +826,7 @@ void decodeAndExecute(WORD inst) {
         // once we know the instruction we can execute it!
         switch (insTypeCode) {
             case IT_DP:
-                doDataProcessing(inst);
+                issueOk = doDataProcessing(inst);
                 break;
             case IT_DT:
                 doDataTransfer(inst);
@@ -747,6 +844,7 @@ void decodeAndExecute(WORD inst) {
     } else {
         instResult = INST_CONDITIONNOTMET;
     }
+    return issueOk;
 }
 
 //Add delay and get feedback either to interrupt, exit or continue to next instruction
@@ -957,14 +1055,15 @@ int main(void) {
         //After each instruction is completed, get user feedback
 //        getFeedback();
 
-        // fetch the next instruction. Subtract 4 from the PC, because of the pipeline PC points to 4 instructions forward
-        //increment the PC(register[15]) to point at the next instruction
-        if (issueInstruction == TRUE) {
-            inst = memory[(registers[15] - 4)];
+        checkdependencias();
+        inst = memory[(registers[15] - 4)];
+        if (decodeAndExecute(inst)) {
+            registers[15]++;
             registers[15]++;
             instCount++;
         }
 
+        checkUF1();
         //Initialise the instruction result values
         instResult = INST_VALID;
 

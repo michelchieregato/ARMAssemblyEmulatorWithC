@@ -34,7 +34,8 @@ typedef uint8_t BIT;            //define bit data type
 #define POS_N (31)//Negative bit
 
 #define POS_BOFFSET (0)//Offset for branch
-
+#define UF1_INSTRUCTION (7)
+#define UF2_INSTRUCTION (4)
 #define POS_P (24)//Pre/Post bit
 #define POS_U (23)//Up/Down bit
 #define POS_B (22)//Byte/Word bit
@@ -273,10 +274,10 @@ void doEor(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
 /*doAdd
  * Adds op1Value to op2Value and stores in the specified register
  *
- * enter: 	regNumber - the number of the destination register (0-15)
- * 			op1Value  - the first value to be added
- * 			op2Value  -  the second value to be added
- * 			setSR     - flag, if non-zero then the status register should be updated, else it shouldn't
+ * enter:   regNumber - the number of the destination register (0-15)
+ *          op1Value  - the first value to be added
+ *          op2Value  -  the second value to be added
+ *          setSR     - flag, if non-zero then the status register should be updated, else it shouldn't
  */
 
 // Mudei aqui por causas dos steps
@@ -285,7 +286,7 @@ void doAdd(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
     addStep++;
     issueInstruction = FALSE;
 
-    if (addStep == 4) {
+    if (addStep == UF1_INSTRUCTION) {
         if (instructionLogEnabled) printf("Operation: ADD %d %d\n", op1Value, op2Value);
         WORD result = op1Value + op2Value;
 
@@ -294,10 +295,12 @@ void doAdd(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
             setStatusReg(result == 0, isNegative(result), isCarryAdd(op1Value, op2Value, result),
                          isOverflowAdd(op1Value, op2Value, result), 0, 0, 0);
         issueInstruction = TRUE;
-    } else if (addStep == 5) {
-        addStep = 0;
-        issueInstruction = TRUE;
+        addStep=0;
     }
+//    else if (addStep == 5) {
+//        addStep = 0;
+//        issueInstruction = TRUE;
+//    }
 }
 
 void doAdc(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
@@ -317,7 +320,7 @@ void doSub(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
     subStep++;
     issueInstruction = FALSE;
 
-    if (subStep == 4) {
+    if (subStep == UF1_INSTRUCTION) {
         if (instructionLogEnabled) printf("Operation: SUB %d %d\n", op1Value, op2Value);
         WORD result = op1Value - op2Value;
 
@@ -327,10 +330,12 @@ void doSub(int regNumber, WORD op1Value, WORD op2Value, int setSR) {
             setStatusReg(result == 0, isNegative(result), isCarrySub(op1Value, op2Value, result),
                          isOverflowSub(op1Value, op2Value, result), 0, 0, 0);
         issueInstruction = TRUE;
-    } if (subStep == 5) {
-        subStep = 0;
-        issueInstruction = TRUE;
+        subStep=0;
     }
+//    if (subStep == 5) {
+//        subStep = 0;
+//        issueInstruction = TRUE;
+//    }
 
 }
 
@@ -624,8 +629,15 @@ void doBranch(WORD inst) {
 }
 
 //Do the data transfer operation
+int datastep=0;
 void doDataTransfer(WORD inst) {
 
+    datastep++;
+    issueInstruction = FALSE;
+    if(datastep < UF2_INSTRUCTION) {
+
+        return;
+    }
     iBit = (inst >> POS_I) & MASK_1BIT;//Get Immediate bit
     pBit = (inst >> POS_P) & MASK_1BIT;//Get Pre/Post bit
     uBit = (inst >> POS_U) & MASK_1BIT;//Get Up/Down bit
@@ -694,6 +706,7 @@ void doDataTransfer(WORD inst) {
     } else {
         instResult = INST_RESTRICTEDMEMORYBLOCK;
     }
+    issueInstruction = TRUE;
 }
 
 //Handle the software interrupt
@@ -778,51 +791,51 @@ void printOutput() {
         }
         printf("\n");
 
-        //Print only the user accessible memory values
-        printf("Memory\n");
-        for (i = userMemoryIndex; i < maxMemorySize; i++) {
-            printf("-M[%d]: %d ", i, memory[i]);
-        }
-        printf("\n");
-
-        //Print the stack
-        printf("Stack\n");
-        for (i = stkMemoryIndex; i < userMemoryIndex; i++) {
-            printf("-S[%d]: %d ", i, memory[i]);
-        }
-        printf("\n");
-
-        if (debugEnabled) printf("-Status Register: %X ", regStatus);//Print status register
-        //Print status flags
-        printf("Flags\n");
-        printf("-Negative: %d ", isSet(STAT_N));
-        printf("-Zero: %d ", isSet(STAT_Z));
-        printf("-Carry: %d ", isSet(STAT_C));
-        printf("-Overflow: %d ", isSet(STAT_V));
-        printf("-Interrupt disabled: %d ", isSet(STAT_I));
-        printf("-Fast interrupt disabled: %d ", isSet(STAT_F));
-        printf("-Processor operation mode: %d ", isSet(STAT_P));
-        printf("\n");
-
-    } else {
-        switch (instResult) {
-            case INST_CONDITIONNOTMET:
-                printf("The condition is not met.\n");
-                break;
-            case INST_INVALID:
-                printf("The instruction is invalid.\n");
-                break;
-            case INST_MULTIPLYBYZERO:
-                printf("The instruction causes multiply by zero.\n");
-                break;
-            case INST_RESTRICTEDMEMORYBLOCK:
-                printf("Restricted memory block. End users have access to memory indexes greater then %d\n",
-                       (userMemoryIndex - 1));
-                break;
-            default:
-                printf("Unexpected error happened.\n");
-                break;
-        }
+//        //Print only the user accessible memory values
+//        printf("Memory\n");
+//        for (i = userMemoryIndex; i < maxMemorySize; i++) {
+//            printf("-M[%d]: %d ", i, memory[i]);
+//        }
+//        printf("\n");
+//
+//        //Print the stack
+//        printf("Stack\n");
+//        for (i = stkMemoryIndex; i < userMemoryIndex; i++) {
+//            printf("-S[%d]: %d ", i, memory[i]);
+//        }
+//        printf("\n");
+//
+//        if (debugEnabled) printf("-Status Register: %X ", regStatus);//Print status register
+//        //Print status flags
+//        printf("Flags\n");
+//        printf("-Negative: %d ", isSet(STAT_N));
+//        printf("-Zero: %d ", isSet(STAT_Z));
+//        printf("-Carry: %d ", isSet(STAT_C));
+//        printf("-Overflow: %d ", isSet(STAT_V));
+//        printf("-Interrupt disabled: %d ", isSet(STAT_I));
+//        printf("-Fast interrupt disabled: %d ", isSet(STAT_F));
+//        printf("-Processor operation mode: %d ", isSet(STAT_P));
+//        printf("\n");
+//
+//    } else {
+//        switch (instResult) {
+//            case INST_CONDITIONNOTMET:
+//                printf("The condition is not met.\n");
+//                break;
+//            case INST_INVALID:
+//                printf("The instruction is invalid.\n");
+//                break;
+//            case INST_MULTIPLYBYZERO:
+//                printf("The instruction causes multiply by zero.\n");
+//                break;
+//            case INST_RESTRICTEDMEMORYBLOCK:
+//                printf("Restricted memory block. End users have access to memory indexes greater then %d\n",
+//                       (userMemoryIndex - 1));
+//                break;
+//            default:
+//                printf("Unexpected error happened.\n");
+//                break;
+//        }
     }
 }
 
@@ -835,7 +848,15 @@ int main(void) {
     for (i = 0; i < 16; i++) {
         registers[i] = 0;
     }
-
+    registers[0]=0x3;
+    registers[1]=0x7;
+    registers[2]=0x1;
+    registers[3]=0x82;
+    registers[4]=0x9;
+    registers[5]=0x2;
+    // inicializando a memoria
+    memory[130]=0x8;
+    memory[134]=0x4;
     //initialise the stack pointer to the initial index of stack memory
     registers[13] = stkMemoryIndex;
 
@@ -843,110 +864,121 @@ int main(void) {
     registers[15] = instMemoryIndex + 4;
 
     /*Interrupt branch instructions*/
-    //B #28 		1110 1010 0000 0000 0000 0000 0001 1100 //branch to #13: Add 10 to R0. Jump to 11-4 next memory location, since PC is already showing the next instruction and another 4 because of pipeline
+    //B #28         1110 1010 0000 0000 0000 0000 0001 1100 //branch to #13: Add 10 to R0. Jump to 11-4 next memory location, since PC is already showing the next instruction and another 4 because of pipeline
     memory[swibMemoryIndex + SYS_ADD10] = 0xEA00001C;
     //End Interrupt branch instructions
 
     /*Interrupt instructions*/
     //ADD R0,R0,#10 1110 0010 1000 0000 0000 0000 0000 1010 //Add 10 to R0
     memory[swiMemoryIndex + SYS_POS_ADD10] = 0xE280000A;
-    //MOV R15,R14	1110 0001 1010 0000 1111 0000 0000 1110 //branch back to where interrupt was called
+    //MOV R15,R14   1110 0001 1010 0000 1111 0000 0000 1110 //branch back to where interrupt was called
     memory[swiMemoryIndex + SYS_POS_ADD10 + 1] = 0xE1A0F00E;
     //End Interrupt instructions
 
     //for testing purposes put some data into the memory. This data represents the instructions to be executed.
-
-    /*Math instructions*/
-    // MOV r0,#9    		1110 0011 1010 0000 0000 0000 0000 1001
-    memory[memoryIndex++] = 0xE3A00009;
-    //MOV r1,#8			1110 0011 1010 0000 0001 0000 0000 1000
-    memory[memoryIndex++] = 0xE3A01008;
-    //ADD r2,r0,r1		1110 0000 1000 0000 0010 0000 0000 0001
+    // LD r4,r3,#4  1110 01 1 0 101 1 0011 0100 0000 0000 0100
+    memory[memoryIndex++] = 0xEE6B34004;
+    //ADD r2,r0,r1      1110 0000 1000 0000 0010 0000 0000 0001
     memory[memoryIndex++] = 0xE0802001;
-    //ADD r3,r0,#5		1110 0010 1000 0000 0011 0000 0000 0101
-    memory[memoryIndex++] = 0xE2803005;
-    //SUB r4,r2,#5		1110 0010 0100 0010 0100 0000 0000 0101
-    memory[memoryIndex++] = 0xE2424005;
-    //RSBS r5,r0,#5		1110 0010 0111 0000 0101 0000 0000 0101
-    memory[memoryIndex++] = 0xE2705005;
-    //ADDS r6,r0,#205	1110 0010 1001 0000 0110 0000 1100 1101
-    memory[memoryIndex++] = 0xE29060CD;
-    //BICS r7,r0,#1		1110 0011 1101 0000 0111 0000 0000 0001
-    memory[memoryIndex++] = 0xE3D07001;
-    //End Math instructions
+    // LD r5,r3,#4  1110 01 1 0 101 1 0011 0101 0000 0000 0100
+    memory[memoryIndex++] = 0xE6B35004;
+    //ADD r0,r5,r2      1110 0000 1000 0101 0000 0000 0000 0010
+    memory[memoryIndex++] = 0xE0850002;
+//    //ADD r3,r0,#5        1110 0000 1000 0000 0011 0000 0000 0101
+//    memory[memoryIndex++] = 0xE2803005;
+    //SUB r4,r5,r2      1110 0000 0100 0010 0100 0000 0000 0101
+    memory[memoryIndex++] = 0xE0424005;
+//    /*Math instructions*/
+//    // MOV r0,#9          1110 0011 1010 0000 0000 0000 0000 1001
+//    memory[memoryIndex++] = 0xE3A00009;
+//    //MOV r1,#8           1110 0011 1010 0000 0001 0000 0000 1000
+//    memory[memoryIndex++] = 0xE3A01008;
+//    //ADD r2,r0,r1        1110 0000 1000 0000 0010 0000 0000 0001
+//    memory[memoryIndex++] = 0xE0802001;
+//    //ADD r3,r0,#5        1110 0010 1000 0000 0011 0000 0000 0101
+//    memory[memoryIndex++] = 0xE2803005;
+//    //SUB r4,r2,#5        1110 0010 0100 0010 0100 0000 0000 0101
+//    memory[memoryIndex++] = 0xE2424005;
+//    //RSBS r5,r0,#5       1110 0010 0111 0000 0101 0000 0000 0101
+//    memory[memoryIndex++] = 0xE2705005;
+//    //ADDS r6,r0,#205 1110 0010 1001 0000 0110 0000 1100 1101
+//    memory[memoryIndex++] = 0xE29060CD;
+//    //BICS r7,r0,#1       1110 0011 1101 0000 0111 0000 0000 0001
+//    memory[memoryIndex++] = 0xE3D07001;
+//    //End Math instructions
 
     /*Logic instructions
-    //MOVS r0,#9    	1110 0011 1011 0000 0000 0000 0000 1001
+    //MOVS r0,#9        1110 0011 1011 0000 0000 0000 0000 1001
     memory[memoryIndex++] = 0xE3B00009;
-    //MOVS r1,#12		1110 0011 1011 0000 0001 0000 0000 1100
+    //MOVS r1,#12       1110 0011 1011 0000 0001 0000 0000 1100
     memory[memoryIndex++] = 0xE3B0100C;
-    //MVNS r5,#2			1110 0011 1111 0000 0101 0000 0000 0010
+    //MVNS r5,#2            1110 0011 1111 0000 0101 0000 0000 0010
     //memory[memoryIndex++] = 0xE3F05002;
-    //AND r2,r0,r1		1110 0000 0000 0000 0010 0000 0000 0001
+    //AND r2,r0,r1      1110 0000 0000 0000 0010 0000 0000 0001
     //memory[memoryIndex++] = 0xE0002001;
-    //ORR r3,r0,r1		1110 0001 1000 0000 0011 0000 0000 0001
+    //ORR r3,r0,r1      1110 0001 1000 0000 0011 0000 0000 0001
     //memory[memoryIndex++] = 0xE1803001;
-    //EOR r4,r0,r1		1110 0000 0010 0000 0100 0000 0000 0001
+    //EOR r4,r0,r1      1110 0000 0010 0000 0100 0000 0000 0001
     //memory[memoryIndex++] = 0xE0204001;
-    //CMP r2,#9			1110 0011 0101 0010 0000 0000 0000 1001
+    //CMP r2,#9         1110 0011 0101 0010 0000 0000 0000 1001
     //memory[memoryIndex++] = 0xE3520009;
-    //CMN r5,#1			1110 0011 0111 0101 0000 0000 0000 0001
+    //CMN r5,#1         1110 0011 0111 0101 0000 0000 0000 0001
     //memory[memoryIndex++] = 0xE3750001;
-    //TST r1,#0			1110 0011 0001 0001 0000 0000 0000 0000
+    //TST r1,#0         1110 0011 0001 0001 0000 0000 0000 0000
     memory[memoryIndex++] = 0xE3110000;
-    //TEQ r1,#12			1110 0011 0011 0001 0000 0000 0000 1100
+    //TEQ r1,#12            1110 0011 0011 0001 0000 0000 0000 1100
     memory[memoryIndex++] = 0xE331000C;
     //End Logic instructions*/
 
     /*Loop instructions
-    //MOV R4,#100 		1110 0011 1010 0000 0100 0000 0110 0100
+    //MOV R4,#100       1110 0011 1010 0000 0100 0000 0110 0100
     memory[memoryIndex++] = 0xE3A04064;
-    //MOV R3,#0    		1110 0011 1010 0000 0011 0000 0000 0000
+    //MOV R3,#0         1110 0011 1010 0000 0011 0000 0000 0000
     memory[memoryIndex++] = 0xE3A03000;
-    //SUB R4,R4,R3		1110 0000 0100 0100 0100 0000 0000 0011 //.strR4100
+    //SUB R4,R4,R3      1110 0000 0100 0100 0100 0000 0000 0011 //.strR4100
     memory[memoryIndex++] = 0xE0444003;
-    //ADD R3,R3,#1		1110 0010 1000 0011 0011 0000 0000 0001
+    //ADD R3,R3,#1      1110 0010 1000 0011 0011 0000 0000 0001
     memory[memoryIndex++] = 0xE2833001;
-    //CMP R3,#100		1110 0011 0101 0011 0000 0000 0110 0100
+    //CMP R3,#100       1110 0011 0101 0011 0000 0000 0110 0100
     memory[memoryIndex++] = 0xE3530064;
-    //BNE #-32			0001 1010 1111 1111 1111 1111 1110 0000 //return to .strR4100 if loop not completed. 4+4 instructions back, because of pipeline
+    //BNE #-32          0001 1010 1111 1111 1111 1111 1110 0000 //return to .strR4100 if loop not completed. 4+4 instructions back, because of pipeline
     memory[memoryIndex++] = 0x1AFFFFE0;*/
     //End Loop instructions
 
     /*Data transfer instructions
-    //MOV R0,#10 		1110 0011 1010 0000 0000 0000 0000 1010 //Counter for loop = 10
+    //MOV R0,#10        1110 0011 1010 0000 0000 0000 0000 1010 //Counter for loop = 10
     memory[memoryIndex++] = 0xE3A0000A;
-    //MOV R4,#100 		1110 0011 1010 0000 0100 0000 0110 0100
+    //MOV R4,#100       1110 0011 1010 0000 0100 0000 0110 0100
     memory[memoryIndex++] = 0xE3A04064;
-    //MOV R3,#120    		1110 0011 1010 0000 0011 0000 0111 1000
+    //MOV R3,#120           1110 0011 1010 0000 0011 0000 0111 1000
     memory[memoryIndex++] = 0xE3A03078;
     //STR R4,R3,#1!   1110 0110 1110 0011 0100 0000 0000 0001 //Post bit set .strR4100
     memory[memoryIndex++] = 0xE6E34001;
-    //SUBS R0,R0,#1		1110 0010 0101 0000 0000 0000 0000 0001 //Start loop counter
+    //SUBS R0,R0,#1     1110 0010 0101 0000 0000 0000 0000 0001 //Start loop counter
     memory[memoryIndex++] = 0xE2500001;
-    //BNE #-28			0001 1010 1111 1111 1111 1111 1110 0100 //return to .strR4100 if loop not completed. 3+4 instructions back, because of pipeline
+    //BNE #-28          0001 1010 1111 1111 1111 1111 1110 0100 //return to .strR4100 if loop not completed. 3+4 instructions back, because of pipeline
     memory[memoryIndex++] = 0x1AFFFFE4;
     //End Data transfer instructions*/
 
     /*Software Interrupt instructions
-    //SWI #1			1110 1111 0000 0000 0000 0000 0000 0001 //SWI to Add 10 to R0
+    //SWI #1            1110 1111 0000 0000 0000 0000 0000 0001 //SWI to Add 10 to R0
     memory[memoryIndex++] = 0xEF000001;
-    //SUBS r0,r0,#10	1110 0010 0101 0000 0000 0000 0000 1010
+    //SUBS r0,r0,#10    1110 0010 0101 0000 0000 0000 0000 1010
     memory[memoryIndex++] = 0xE250000A;
     //End Software Interrupt instructions*/
 
     /*Overflow and Carry instructions
-    //MOV r0,#9    						1110 0011 1010 0000 0000 0000 0000 1001
+    //MOV r0,#9                         1110 0011 1010 0000 0000 0000 0000 1001
     //memory[memoryIndex++] = 0xE3A00009;
-    //MOV r1,#255,LSL #15				1110 0011 1010 0000 0001 1111 1111 1111//r1 = 8355840 		00000000011111111000000000000000
+    //MOV r1,#255,LSL #15               1110 0011 1010 0000 0001 1111 1111 1111//r1 = 8355840       00000000011111111000000000000000
     memory[memoryIndex++] = 0xE3A01FFF;
-    //MOV r1,r1,LSL #8					1110 0001 1010 0000 0001 0000 1000 0001//r1 = 2139095040	01111111100000000000000000000000
+    //MOV r1,r1,LSL #8                  1110 0001 1010 0000 0001 0000 1000 0001//r1 = 2139095040    01111111100000000000000000000000
     memory[memoryIndex++] = 0xE1A01081;
-    //ADDS r2,r1,r1						1110 0000 1001 0001 0010 0000 0000 0001//r2 = 4278190080	11111111000000000000000000000000 //causes overflow
+    //ADDS r2,r1,r1                     1110 0000 1001 0001 0010 0000 0000 0001//r2 = 4278190080    11111111000000000000000000000000 //causes overflow
     memory[memoryIndex++] = 0xE0912001;
-    //MOV r3,r1,LSL #1					1110 0001 1010 0000 0011 0000 0001 0001//r3 = 4278190080	11111111000000000000000000000000
+    //MOV r3,r1,LSL #1                  1110 0001 1010 0000 0011 0000 0001 0001//r3 = 4278190080    11111111000000000000000000000000
     memory[memoryIndex++] = 0xE1A03011;
-    //ADDS r4,r3,r1						1110 0000 1001 0011 0100 0000 0000 0001//r4 = 6417285120 (1)01111110100000000000000000000000 //causes carry
+    //ADDS r4,r3,r1                     1110 0000 1001 0011 0100 0000 0000 0001//r4 = 6417285120 (1)01111110100000000000000000000000 //causes carry
     memory[memoryIndex++] = 0xE0934001;*/
     //End Overflow and Carry instructions
 
@@ -965,6 +997,7 @@ int main(void) {
             inst = memory[(registers[15] - 4)];
             registers[15]++;
             instCount++;
+
         }
 
         //Initialise the instruction result values
@@ -976,6 +1009,7 @@ int main(void) {
         if (inst != 0) {
             printf("---------- Instruction %d ----------\n", instCount);
             decodeAndExecute(inst);
+            printOutput();
             if (issueInstruction == TRUE) {
                 printOutput();
                 printf("---------- %d Cycles, end of instruction %d----------\n", clock, instCount);

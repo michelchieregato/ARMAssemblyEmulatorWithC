@@ -34,8 +34,8 @@ typedef uint8_t BIT;            //define bit data type
 #define POS_N (31)//Negative bit
 
 #define POS_BOFFSET (0)//Offset for branch
-#define UF1_INSTRUCTION (7)
-#define UF2_INSTRUCTION (4)
+#define UF1_INSTRUCTION (6)
+#define UF2_INSTRUCTION (3)
 #define POS_P (24)//Pre/Post bit
 #define POS_U (23)//Up/Down bit
 #define POS_B (22)//Byte/Word bit
@@ -707,6 +707,7 @@ void doDataTransfer(WORD inst) {
         instResult = INST_RESTRICTEDMEMORYBLOCK;
     }
     issueInstruction = TRUE;
+    datastep =0;
 }
 
 //Handle the software interrupt
@@ -1021,9 +1022,9 @@ int main(void) {
             isFinished = 1;
 
             //Total instruction count doesn't include the finish instruction
-            printf("========== %d Total cycles for %d instructions ==========\n", clock, instCount);
-            printf("Press enter to exit...\n");
-            getchar();
+            //printf("========== %d Total cycles for %d instructions ==========\n", clock, instCount);
+            //printf("Press enter to exit...\n");
+            //getchar();
         }
     }
     // all ok
